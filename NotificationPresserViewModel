@@ -1,0 +1,326 @@
+import Foundation
+import Firebase
+import UserNotifications
+
+class NotificationPresserViewModel : ObservableObject {
+    private var plistData : [String: AnyObject] = [:]
+    private var classes: [String] = []
+    private var newAverageGrades: [String] = []
+    private var newAssignmentNames = [[String]]()
+    private var newAssignmentTypes = [[String]]()
+    private var newAssignmentGrades = [[String]]()
+    private var oldLengthOfGrades: [Int] = []
+
+    func fetchCurrentUserInfo(_ isButtonOn: Bool, _ key: String) {
+        guard let uid = FirebaseManager.shared.auth.currentUser?.uid else {
+            return
+        }
+        FirebaseManager.shared.firestore.collection("Students").document(uid).getDocument { [self] snapshot, error in
+            if let error = error {
+                print("Failed to fetch current user", error)
+                return
+            }
+            guard let data = snapshot?.data() else {
+                return}
+            let email = data["email"] as? String ?? ""
+            let encryptedPassword = data["encrypted password"] as? String ?? ""
+            let studentID = data["studentID"] as? String ?? ""
+            oldLengthOfGrades = data["grades length"] as? [Int] ?? []
+
+            
+            do {
+                // Encrypt the plaintext
+                if let decryptedPassword = try Backend.decryptString(encryptedPassword, key: key) {
+                    receiveGrades(studentID, email, decryptedPassword) {
+                        
+                        print(newAssignmentGrades)
+                        self.newAssignmentGrades[6].insert(contentsOf: Array(arrayLiteral: "100.00%"), at: 0)
+                        self.newAssignmentTypes[6].insert(contentsOf: Array(arrayLiteral: "Final Exam"), at: 0)
+                        self.newAssignmentNames[6].insert(contentsOf: Array(arrayLiteral: "Rizz Ellie Sacks"), at: 0)
+                        
+                        for i in 0..<newAssignmentGrades.count
+                                
+                         {
+                           if (newAssignmentGrades[i].count > oldLengthOfGrades[i])
+                           {
+                               if (Backend.findIndex(of :newAssignmentTypes[i][0].lowercased(), in: "homework") == nil ||
+                                  Backend.findIndex( of: newAssignmentTypes[i][0].lowercased(), in: "hw") == nil)
+                             {
+                               print(newAssignmentTypes[i][0])
+                               print(newAssignmentNames[i][0])
+                               print(newAssignmentGrades[i][0])
+                               print(classes)
+                               print(classes[i])
+                                   
+                               runNotification(classes[i], newAssignmentNames[i][0],newAssignmentGrades[i][0])
+        
+           
+                             }
+                             oldLengthOfGrades[i] = newAssignmentGrades[i].count
+                           }
+                        }
+                        }
+                  }
+                else {
+                    print("Failed to decrypt.")
+                }
+            } catch {
+                print("Error: \(error)")
+            }
+    }
+    }
+    func performLogin(username: String, password: String, completion: @escaping (Bool) -> Void)
+    {
+        let loginURLString = "https://parents.westfieldnjk12.org/genesis/sis/j_security_check"
+        let loginString = "\(username):\(password)"
+        
+        guard let loginData = loginString.data(using: .utf8) else {
+            completion(false)
+            return
+        }
+        let base64LoginString = loginData.base64EncodedString()
+        let loginHeaders = [
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Cache-Control": "max-age=0",
+          "Connection": "keep-alive",
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Origin": "https://parents.westfieldnjk12.org",
+          "Referer": "https://parents.westfieldnjk12.org/genesis/sis/view?gohome=true",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "same-origin",
+          "Sec-Fetch-User": "?1",
+          "Upgrade-Insecure-Requests": "1",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Google Chrome\";v=\"113\", \"Chromium\";v=\"113\", \"Not-A.Brand\";v=\"24\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Windows\""
+        ]
+        
+        let loginURL = URL(string: loginURLString)!
+        var loginRequest = URLRequest(url: loginURL)
+        loginRequest.httpMethod = "POST"
+        loginRequest.setValue("Basic \(base64LoginString)", forHTTPHeaderField: "Authorization")
+        loginRequest.httpBody = "idTokenString=&j_username=\(username)&j_password=\(password)".data(using: .utf8)
+        loginRequest.allHTTPHeaderFields = loginHeaders
+        
+        let sharedSession = URLSession.shared
+        let loginTask = sharedSession.dataTask(with: loginRequest) { (_, response, _) in
+            if let response = response as? HTTPURLResponse, response.statusCode == 200 {
+                completion(true)
+            } else {
+                completion(false)
+            }
+        }
+        loginTask.resume()
+    }
+    func performGetRequest(studentID: String, completion: @escaping (Data?) -> Void) {
+        let getRequestURLString = "https://parents.westfieldnjk12.org/genesis/parents?tab1=studentdata&tab2=gradebook&tab3=weeklysummary&action=form&studentid=\(studentID)"
+        let getRequestURL = URL(string: getRequestURLString)!
+        var getRequest = URLRequest(url: getRequestURL)
+        getRequest.httpMethod = "GET"
+        getRequest.allHTTPHeaderFields = [
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Cache-Control": "max-age=0",
+          "Connection": "keep-alive",
+          "Referer": "https://parents.westfieldnjk12.org/genesis/parents?tab1=studentdata&tab2=gradebook&action=form&studentid=\(studentID)",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "same-origin",
+          "Sec-Fetch-User": "?1",
+          "Upgrade-Insecure-Requests": "1",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Google Chrome\";v=\"113\", \"Chromium\";v=\"113\", \"Not-A.Brand\";v=\"24\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Windows\""
+        ]
+        let sharedSession = URLSession.shared
+        let getRequestTask = sharedSession.dataTask(with: getRequest) { (data, _, _) in
+            completion(data)
+        }
+        getRequestTask.resume()
+    }
+
+    func performClassRequest(index: Int, codes: [String], studentID: String, completion: @escaping (Data?, Int) -> Void)
+    {
+      func performNextRequest(index: Int)
+      {
+        if index == codes.count
+        {
+          // All requests have been completed
+          completion(nil, index)
+          return
+        }
+          
+        let getRequestHeaders = [
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "max-age=0",
+        "Connection": "keep-alive",
+        "Referer": "https://parents.westfieldnjk12.org/genesis/parents?tab1=studentdata&tab2=gradebook&action=form&studentid=\(studentID)",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Google Chrome\";v=\"113\", \"Chromium\";v=\"113\", \"Not-A.Brand\";v=\"24\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Windows\""
+                                ]
+        
+        let sharedSession = URLSession.shared
+        let sessionWithCookies = URLSession(configuration: .default)
+        
+        var code = codes[index]
+        let letterIndex = Backend.findIndex(of: ",", in: code) ?? 0
+        let code1 = String(code[code.startIndex..<code.index(code.startIndex, offsetBy: letterIndex)])
+        let start = code.index(code.startIndex, offsetBy: letterIndex + 1)
+        let range = start..<code.endIndex
+        let code2 = String(code[range])
+
+        let classesURLString = "https://parents.westfieldnjk12.org/genesis/parents?tab1=studentdata&tab2=gradebook&tab3=coursesummary&studentid=\(studentID)&action=form&courseCode=\(code1)&courseSection=\(code2)"
+        let classesRequestURL = URL(string: classesURLString)!
+        var classesRequest = URLRequest(url: classesRequestURL)
+        classesRequest.httpMethod = "GET"
+        classesRequest.allHTTPHeaderFields = getRequestHeaders
+        classesRequest.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+            
+        let classesTask = sessionWithCookies.dataTask(with: classesRequest) { (data, _, _) in
+          if (index + 1 <= codes.count)
+          {
+              performNextRequest(index: index + 1)
+              completion(data, index)
+          }
+        }
+            
+        classesTask.resume()
+      }
+      // Start the sequential execution
+      performNextRequest(index: index)
+    }
+
+    func receiveGrades(_ studentID: String, _ username: String, _ password: String, completion: @escaping () -> Void)
+        {
+          var letterIndex = Backend.findIndex(of: "@", in: username) ?? 0
+            
+          if letterIndex == 0
+          {
+            completion()
+            return
+          }
+          else
+          {
+            let username1 = String(username[username.startIndex..<username.index(username.startIndex, offsetBy: letterIndex)])
+            let username2 = String(username[username.index(username.startIndex, offsetBy: letterIndex + 1)...])
+            
+              performLogin(username: "\(username1)%40\(username2)", password: password) { success in
+              if success
+              {
+                  self.performGetRequest(studentID: studentID) { data in
+                  if let responseData = data
+                  {
+                    let responseString = String(data: responseData, encoding: .utf8)
+                      self.classes = Backend.scrapeCategories(responseString ?? "")
+                    let codes = Backend.scrapeCodes(responseString ?? "")
+                      while self.newAssignmentNames.count < codes.count
+                        {
+                        self.newAssignmentNames.append([""])
+                        self.newAssignmentGrades.append([""])
+                        self.newAssignmentTypes.append([""])
+                        }
+                    
+
+                    var requestCount = codes.count
+                    var completedCount = 0
+                    
+                      self.performClassRequest(index: 0, codes: codes, studentID: studentID) { data, index in
+                      if let responseData = data
+                      {
+                        let responseString = String(data: responseData, encoding: .utf8)
+                          
+                          self.newAssignmentGrades[index] = Backend.scrapeAssignmentsTypes(responseString ?? "")
+                          self.newAssignmentNames[index] = Backend.scrapeAssignmentsGrades(responseString ?? "")
+                          self.newAssignmentTypes[index] = Backend.scrapeAssignmentsTypes(responseString ?? "")
+                      }
+                      completedCount += 1
+                    
+                     if completedCount == requestCount - 1
+                      {
+                        completion()
+                      }
+                    }
+                  }
+                }
+              }
+              else
+              {
+                print("Login Error")
+                completion()
+              }
+            }
+          }
+     
+
+        }
+
+//    func check(_ newGrades:[String]) -> String
+//    {
+//        for i in 0..<newGrades.count
+//          {
+//            if (oldGrades[i] != newGrades[i]) {
+//              //stores the new grade in this variable
+//              var grade = newGrades[i]
+//              //updates the old grades list to have the new grade
+//                oldGrades[i] = grade
+//              //returns the new grade that changed
+//              return grade
+//            }
+//          }
+//          return "-1";
+//    }
+
+    func runNotification(_ className: String, _ gradeAssignmentName: String, _ assignmentGrade : String) {
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        print("HELLOOOO")
+        content.title = "UPDATED GRADE in " + className  //MARK: THIS WOULD BE THE DESCRIPTION OF THE CLASS -----> can we also put the decripton of the TEST???
+        content.body = gradeAssignmentName + " " + assignmentGrade
+        content.sound = UNNotificationSound.default
+        
+        content.categoryIdentifier = NotificationCategory.general.rawValue
+            
+        //CUSTOMIZE TIMER TO MAKE IT SO THAT IT SEND S NOTIFICATION< EVERYTIME A GRADE HAS UPDTAED
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5.0, repeats: false)
+            
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
+        
+        UNUserNotificationCenter.current().add(request)
+        
+        let dismiss = UNNotificationAction(identifier: NotificationAction.dismiss.rawValue, title: "Dismiss", options:[])
+
+        let reminder = UNNotificationAction(identifier: NotificationAction.dismiss.rawValue, title: "Reminder", options: [])
+
+        let generalCategory = UNNotificationCategory(identifier: NotificationCategory.general.rawValue, actions: [dismiss, reminder], intentIdentifiers: [], options: [])
+                
+        center.setNotificationCategories([generalCategory])
+        center.add(request) { error in
+            if let error = error {
+                print(error)
+            }
+    
+        }
+    }
+    
+    func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options : [.alert, .badge, .sound]) { success, error in
+            if let error = error {
+                print(error.localizedDescription)
+                   }
+               }
+    }
+}
+
+

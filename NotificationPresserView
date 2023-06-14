@@ -1,0 +1,206 @@
+//import SwiftUI
+//import Firebase
+//import UserNotifications
+//
+//enum NotificationAction: String {
+//    case dismiss
+//    case reminder
+//}
+//
+//enum NotificationCategory: String {
+//    case general
+//}
+////MARK: CONSIDER DLEETING THE ACOUNT EVERYTIME THE USER LOG-OUTS?????? -----> might save some storage -----> write this down some
+//struct NotificationPresserview: View {
+//    @State var animate = false
+//    @State var isSelected = false
+//    @State var notificationBellName = ""
+//    @Binding var showWelcomePage: Bool
+//    @StateObject var globalLogin = GlobalLogin()
+//    @ObservedObject var vm = NotificationManager()
+//
+//    var body: some View {
+//        //MARK: ADD LOGIC SO THAT IF USER IS LOGGED OUT, THEY ALSO STOP RECEIVING NOTIFICATIONS
+//        VStack (spacing: -150) {
+//                Group {
+//                    notificationButton
+//                    logoutButton
+//                }
+//                .frame(maxHeight: .infinity, alignment: .bottom)
+//                    .padding(.bottom)
+//        .onAppear {
+//            vm.requestNotificationPermission()
+//        }
+//}
+//    //MARK: MAKE SURE YOU ADD FUNCTIONALITY SO THAT USER KNOWS IF REQUEST WASN'T COMPLETED
+//    //MARK: WILL PROB HAVE TO REMOVE THE EMOJI
+//    }
+//    private var logoutButton : some View {
+//        Button  ( action: {
+//            //MARK: CREATE THE SIGNOUT ----> maybe you should replace the globalLogin.loggedIn?
+//            globalLogin.loggedIn = false
+//            showWelcomePage = true
+//        }
+//            ,label:
+//            {
+//        Text("**Log Out✌️**")
+//            .foregroundColor(.white)
+//            .font(.system(size: 20))
+//            .frame(width: 130, height: 40)
+//            .background( Color.black)
+//            .cornerRadius(15)}
+//)
+//    }
+//
+//    private var notificationButton : some View {
+//        Button ( action: {
+//            isSelected.toggle()
+//            if (isSelected) {
+//                vm.fetchCurrentUserInfo()
+//            }
+//            withAnimation(Animation.default.repeat(while: isSelected).speed(0.5)) { animate.toggle()}
+//    }
+//             ,label:
+//                {
+//                Circle()
+//                    .fill((animate ? Color.green : Color.black))
+//                    .frame(width: 240, height: 240)
+//                    .shadow(radius:20)
+//                    .overlay(
+//                        Image(isSelected ? "notification-bell-green" : "notification-bell-white")
+//                            .resizable()
+//                            .scaledToFit()
+//                            .frame(width : 95, height : 95)
+//                    )
+//                    .padding(.horizontal, animate ? 30: 50)
+//                    .shadow(color: animate ? Color.green.opacity(0.7) : Color.black.opacity(0.7), radius: animate ? 30 : 10, x: 0, y: animate ? 50: 30)
+//                    .scaleEffect(animate ? 1.2 : 1.0)
+//                    .offset(y : animate ? -7 : 0)
+//                }
+//    )
+//    }
+//
+//    }
+//extension Animation {
+//    func `repeat` (while expression: Bool, autoreverses: Bool = true) -> Animation {
+//        if expression {
+//            return self.repeatForever(autoreverses: autoreverses)
+//        } else {
+//            return self
+//        }
+//    }
+//}
+//
+import SwiftUI
+import Firebase
+import UserNotifications
+
+//MARK: MAKE WHILE LOOP INSIDE THE BUTTON ITSELF AND TOGGLE ANOTHER BOOLEAN VARIABLE
+
+enum NotificationAction: String {
+    case dismiss
+    case reminder
+}
+
+enum NotificationCategory: String {
+    case general
+}
+//MARK: CONSIDER DLEETING THE ACOUNT EVERYTIME THE USER LOG-OUTS?????? -----> might save some storage -----> write this down some
+struct NotificationPresserview: View {
+    @State var animate = false
+    @State var isSelected = false
+    @State var checkGrades = false
+    @State var notificationBellName = ""
+    @Binding var showWelcomePage: Bool
+    @StateObject var globalLogin = GlobalLogin()
+    @ObservedObject private var vm = NotificationPresserViewModel()
+    
+    var body: some View {
+        //MARK: ADD LOGIC SO THAT IF USER IS LOGGED OUT, THEY ALSO STOP RECEIVING NOTIFICATIONS
+        VStack (spacing: -150) {
+                Group {
+                    notificationButton
+                    logoutButton
+                }
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom)
+        .onAppear {
+            vm.requestNotificationPermission()
+        
+        }
+}
+    //MARK: MAKE SURE YOU ADD FUNCTIONALITY SO THAT USER KNOWS IF REQUEST WASN'T COMPLETED
+    //MARK: WILL PROB HAVE TO REMOVE THE EMOJI
+    }
+    private var logoutButton : some View {
+        Button  ( action: {
+            //MARK: CREATE THE SIGNOUT ----> maybe you should replace the globalLogin.loggedIn?
+            globalLogin.loggedIn = false
+            showWelcomePage = true
+        }
+            ,label:
+            {
+        Text("**Log Out✌️**")
+            .foregroundColor(.white)
+            .font(.system(size: 20))
+            .frame(width: 130, height: 40)
+            .background( Color.black)
+            .cornerRadius(15)}
+)
+}
+    
+    private var notificationButton : some View {
+        Button ( action: {
+            isSelected.toggle()
+            if (isSelected) {
+                vm.fetchCurrentUserInfo(isSelected)
+            }
+
+        
+            withAnimation(Animation.default.repeat(while: isSelected).speed(0.6)) {
+                        animate.toggle()
+    }
+        }
+             ,label:
+                {
+                Circle()
+                    .fill((animate ? Color.green : Color.black))
+                    .frame(width: 240, height: 240)
+                    .shadow(radius:20)
+                    .overlay(
+                        Image(isSelected ? "notification-bell-green" : "notification-bell-white")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width : 95, height : 95)
+                    )
+                    .padding(.horizontal, animate ? 30: 50)
+                    .shadow(color: animate ? Color.green.opacity(0.7) : Color.black.opacity(0.7), radius: animate ? 30 : 10, x: 0, y: animate ? 50: 30)
+                    .scaleEffect(animate ? 1.2 : 1.0)
+                    .offset(y : animate ? -7 : 0)
+                }
+    )
+    }
+    
+    func addAnimation() {
+            guard !animate else {return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+                withAnimation(
+                    Animation
+                        .easeInOut(duration: 1.0)
+                        .repeatForever()){
+                    animate.toggle()
+                }
+            }
+        }
+
+}
+    
+extension Animation {
+    func `repeat` (while expression: Bool, autoreverses: Bool = true) -> Animation {
+        if expression {
+            return self.repeatForever(autoreverses: autoreverses)
+        } else {
+            return self
+        }
+    }
+}

@@ -1,0 +1,396 @@
+import SwiftUI
+import Firebase
+import FirebaseDatabase
+struct WelcomePageView: View {
+    @EnvironmentObject var launchScreenManager: LaunchScreenManager
+    @Binding var showWelcomePage : Bool
+    @State var globalLogin = GlobalLogin()
+    @State var studentID = ""
+    @State var email = ""
+    @State var password = ""
+    @State var invalidID = 0
+    @State var visible = false
+    @State var animate1 = false
+    @State private var plistData : [String: AnyObject] = [:]
+    @State var key: String = ""
+    @State var oldGradesLength: [Int] = []
+    @State var oldAverageGrades: [String] = []
+    @State var counter = 0
+    @State var requestWorked = false
+
+
+    var body: some View {
+        VStack(spacing : 45 ) {
+            bell
+            studentIDTextField
+            emailTextField
+            passwordSecureTextField
+            finishButton
+        }
+        .onAppear {
+            addAnimation()
+            plistData = KeyManager.getDictValue()!
+            key = (plistData["ENCRYPTION_KEY"] as! NSString) as String
+}
+}
+    
+        //MARK: ADD A SPINNING CIRCLE THAT REPLACES THE TEXT!!!
+    func addAnimation() {
+        guard !animate1 else {return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+            withAnimation(
+                Animation
+                    .easeInOut(duration: 1.0)
+                    .repeatForever()){
+                animate1.toggle()
+            }
+        }
+    }
+    func performLogin(username: String, password: String, completion: @escaping (Bool) -> Void)
+    {
+        let loginURLString = "https://parents.westfieldnjk12.org/genesis/sis/j_security_check"
+        let loginString = "\(username):\(password)"
+        
+        guard let loginData = loginString.data(using: .utf8) else {
+            completion(false)
+            switchColor()
+            return
+        }
+        let base64LoginString = loginData.base64EncodedString()
+        let loginHeaders = [
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Cache-Control": "max-age=0",
+          "Connection": "keep-alive",
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Origin": "https://parents.westfieldnjk12.org",
+          "Referer": "https://parents.westfieldnjk12.org/genesis/sis/view?gohome=true",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "same-origin",
+          "Sec-Fetch-User": "?1",
+          "Upgrade-Insecure-Requests": "1",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Google Chrome\";v=\"113\", \"Chromium\";v=\"113\", \"Not-A.Brand\";v=\"24\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Windows\""
+        ]
+        
+        let loginURL = URL(string: loginURLString)!
+        var loginRequest = URLRequest(url: loginURL)
+        loginRequest.httpMethod = "POST"
+        loginRequest.setValue("Basic \(base64LoginString)", forHTTPHeaderField: "Authorization")
+        loginRequest.httpBody = "idTokenString=&j_username=\(username)&j_password=\(password)".data(using: .utf8)
+        loginRequest.allHTTPHeaderFields = loginHeaders
+        
+        let sharedSession = URLSession.shared
+        let loginTask = sharedSession.dataTask(with: loginRequest) { (_, response, _) in
+            if let response = response as? HTTPURLResponse, response.statusCode == 200 {
+                completion(true)
+            } else {
+                switchColor()
+                completion(false)
+            }
+        }
+        loginTask.resume()
+    }
+    func performGetRequest(studentID: String, completion: @escaping (Data?) -> Void) {
+        let getRequestURLString = "https://parents.westfieldnjk12.org/genesis/parents?tab1=studentdata&tab2=gradebook&tab3=weeklysummary&action=form&studentid=\(studentID)"
+        let getRequestURL = URL(string: getRequestURLString)!
+        var getRequest = URLRequest(url: getRequestURL)
+        getRequest.httpMethod = "GET"
+        getRequest.allHTTPHeaderFields = [
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Cache-Control": "max-age=0",
+          "Connection": "keep-alive",
+          "Referer": "https://parents.westfieldnjk12.org/genesis/parents?tab1=studentdata&tab2=gradebook&action=form&studentid=\(studentID)",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "same-origin",
+          "Sec-Fetch-User": "?1",
+          "Upgrade-Insecure-Requests": "1",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Google Chrome\";v=\"113\", \"Chromium\";v=\"113\", \"Not-A.Brand\";v=\"24\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Windows\""
+        ]
+        let sharedSession = URLSession.shared
+        let getRequestTask = sharedSession.dataTask(with: getRequest) { (data, _, _) in
+            completion(data)
+        }
+        getRequestTask.resume()
+    }
+
+    func performClassRequest(index: Int, codes: [String], studentID: String, completion: @escaping (Data?, Int) -> Void)
+    {
+
+      func performNextRequest(index: Int)
+      {
+     
+          //MARK: IT IS NEVER GETTING TO THIS PART FOR SOME REASON
+          if index == codes.count
+        {
+         completion(nil, index)
+          return
+        }
+          print("INDEX 1" + String(index))
+        let getRequestHeaders = [
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "max-age=0",
+        "Connection": "keep-alive",
+        "Referer": "https://parents.westfieldnjk12.org/genesis/parents?tab1=studentdata&tab2=gradebook&action=form&studentid=\(studentID)",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Google Chrome\";v=\"113\", \"Chromium\";v=\"113\", \"Not-A.Brand\";v=\"24\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Windows\""
+                                ]
+        
+        let sharedSession = URLSession.shared
+        let sessionWithCookies = URLSession(configuration: .default)
+        
+        var code = codes[index]
+          print(code)
+        let letterIndex = Backend.findIndex(of: ",", in: code) ?? 0
+        let code1 = String(code[code.startIndex..<code.index(code.startIndex, offsetBy: letterIndex)])
+        let start = code.index(code.startIndex, offsetBy: letterIndex + 1)
+        let range = start..<code.endIndex
+        let code2 = String(code[range])
+        var classesURLString = "https://parents.westfieldnjk12.org/genesis/parents?tab1=studentdata&tab2=gradebook&tab3=coursesummary&studentid=\(studentID)&action=form&courseCode=\(code1)&courseSection=\(code2)"
+        var classesRequestURL = URL(string: classesURLString)!
+        print(classesURLString)
+        var classesRequest = URLRequest(url: classesRequestURL)
+        classesRequest.httpMethod = "GET"
+        classesRequest.allHTTPHeaderFields = getRequestHeaders
+        classesRequest.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+  
+        let classesTask = sessionWithCookies.dataTask(with: classesRequest) { (data, _, _) in
+            
+            if (index + 1 <= codes.count)
+            {
+                performNextRequest(index: index + 1)
+                completion(data, index)
+        
+            }
+          }
+          classesTask.resume()
+        }
+      // Start the sequential execution
+       performNextRequest(index: index)
+    }
+    
+    func sync(_ studentID: String, _ username: String, _ password: String, completion: @escaping () -> Void)
+        {
+          var letterIndex = Backend.findIndex(of: "@", in: username) ?? 0
+          if letterIndex == 0
+          {
+            switchColor()
+            completion()
+          }
+          else
+          {
+              let username1 = username[username.startIndex...username.index(username.startIndex, offsetBy: letterIndex - 1)]
+              let start = username.index(username.startIndex, offsetBy: letterIndex + 1)
+              let range = start..<username.endIndex
+              let username2 = username[range]
+            
+              performLogin(username: "\(username1)%40\(username2)", password: password) { success in
+              if success
+              {
+                  self.performGetRequest(studentID: studentID) { data in
+                  if let responseData = data
+                  {
+                    let responseString = String(data: responseData, encoding: .utf8)
+                      oldAverageGrades = Backend.scrapeGradedAverageGrades(responseString ?? "")
+                      let codes = Backend.scrapeCodes(responseString ?? "")
+                      while oldGradesLength.count < codes.count
+                        {
+                            oldGradesLength.append(0)
+                        }
+                    
+                      var requestCount = codes.count
+                      var completedCount = 0
+                      
+                      self.performClassRequest(index: 0, codes: codes, studentID: studentID) { data, index in
+                      if let responseData = data
+                      {
+                        let responseString = String(data: responseData, encoding: .utf8)
+                        let result = Backend.scrapeAssignmentsGrades(responseString ?? "").count
+              
+                          completedCount += 1
+
+                          oldGradesLength[index] = result
+                  
+                        print(oldGradesLength)
+                       
+                          if completedCount == requestCount - 1
+                          {
+                            completion()
+                          }
+                      }
+                    }
+                    }
+                  }
+                }
+                  else
+                  {
+                switchColor()
+                      completion()
+             }
+            }
+            }
+          }
+
+    private var bell: some View {
+        Image("notification-bell-green")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 130, height: 130)
+            .padding(.bottom, 30)
+
+    }
+    
+    private var studentIDTextField : some View {
+        TextField("Student ID", text: self.$studentID)
+            .padding()
+            .background (RoundedRectangle(cornerRadius: 20).stroke(textFieldBorderColor(invalidID, self.studentID), lineWidth: 4))
+            .frame(width: 270, height: 35)
+            .disableAutocorrection(true)
+            .modifier(ShakeEffect(animatableData:  CGFloat(invalidID)))
+    }
+    
+    private var emailTextField : some View {
+        TextField("Email", text: self.$email)
+            .padding()
+            .background (RoundedRectangle(cornerRadius: 20).stroke(textFieldBorderColor(invalidID, self.email), lineWidth: 4))
+            .frame(width: 270, height: 35)
+            .textInputAutocapitalization(.never)
+            .disableAutocorrection(true)
+            .modifier(ShakeEffect(animatableData:  CGFloat(invalidID)))
+    }
+    
+    private var passwordSecureTextField : some View {
+        SecureField("Password", text: self.$password)
+            .padding()
+            .background (RoundedRectangle(cornerRadius: 20).stroke(textFieldBorderColor(invalidID, self.password), lineWidth: 4))
+            .frame(width:270, height: 35)
+            .textInputAutocapitalization(.never)
+            .disableAutocorrection(true)
+            .modifier(ShakeEffect(animatableData:  CGFloat(invalidID)))
+    }
+    
+    //MARK: WILL PROB HAVE TO REMOVE THE EMOJI
+    private var finishButton : some View {
+        Button(
+            action: {
+                sync(studentID, email, password) {
+                    register()
+                      globalLogin.loggedIn = true
+                      showWelcomePage = false
+                }
+            },
+            label: {
+                    Text("**Finish 🥳**")
+                        .foregroundColor(.white)
+                        .font(.system(size: 22))
+                        .frame(width: 240, height: 50)
+                        .background(animate1 ? Color.green : Color.black)
+                        .cornerRadius(15)
+                }
+        )
+            .padding(.horizontal, animate1 ? 30: 50)
+            .shadow(color: animate1 ? Color.green.opacity(0.7) : Color.black.opacity(0.7), radius: animate1 ? 30 : 10, x: 0, y: animate1 ? 50: 30)
+            .scaleEffect(animate1 ? 1.1 : 1.0)
+            .offset(y : animate1 ? -7 : 0)
+    }
+    
+    func textFieldBorderColor (_ invalidUsername: Int, _ message: String) -> Color {
+        if (invalidUsername == 1) {
+            return Color.red
+        }
+        else if (message != "") {
+            return Color.green
+        }
+        else
+        {
+            return Color.black
+        }
+    }
+
+    func register() {
+        FirebaseManager.shared.auth.createUser(withEmail: email, password: password) { (user, error) in
+            if ((error) != nil) {
+                //MARK: MAKE SURE THE LOCALIZED DESCRIPTION IS NOT CAUSED FOR REASONS OTHER THAN THE ACCOUNT ALREADY EXISTING
+                print(error!.localizedDescription)
+                guard let uid = FirebaseManager.shared.auth.currentUser?.uid else {return}
+                print(oldGradesLength)
+                print(oldAverageGrades)
+                Backend.initializeStudent(uid, oldGradesLength, oldAverageGrades)
+                login()
+                return
+            }
+            do {
+                // Encrypt the plaintext
+                if let ciphertext = try Backend.encryptString(password, key) {
+                    login()
+                    addStudent(studentID: studentID, email: email, password: ciphertext, gradesLength: oldGradesLength, averageGrades: oldAverageGrades)
+                } else {
+                    print("Failed to encrypt the plaintext.")
+                }
+            } catch {
+                print("Error: \(error)")
+            }
+        }
+    }
+    
+
+    func login() {
+        FirebaseManager.shared.auth.signIn(withEmail: email, password: password) { result, error in if let error = error {
+                print("Failed to login user", error)
+                switchColor()
+                return
+            }
+            print("Sucessfully logged in as user:\(result?.user.uid ?? "")")
+            }
+        }
+   
+    func addStudent(studentID: String, email: String, password: String, gradesLength: [Int], averageGrades: [String]) {
+        guard let uid = FirebaseManager.shared.auth.currentUser?.uid else {return}
+        let userData = ["email" : email, "encrypted password" : password, "studentID" : studentID, "grades length": gradesLength, "average grades" : averageGrades] as [String : Any]
+        FirebaseManager.shared.firestore.collection("Students").document(uid).setData(userData) {error in
+                if let error = error {
+                    print(error)
+                    switchColor()
+                    return
+                }
+            }
+    }
+    
+    func switchColor() {
+        withAnimation {
+            invalidID += 1
+        }
+        DispatchQueue
+            .main
+            .asyncAfter(deadline: .now() + 0.9) {
+                invalidID = 0}
+    }
+}
+struct ShakeEffect : GeometryEffect {
+    var travelDistance : CGFloat = 6
+    var numOfShake: CGFloat = 4
+    var animatableData: CGFloat
+    
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: travelDistance * sin(animatableData * .pi * numOfShake), y:0))
+    }
+}
+
+
+

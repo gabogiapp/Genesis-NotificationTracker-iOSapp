@@ -1,0 +1,15 @@
+import Foundation
+
+enum LaunchScreenStep {
+    case firstStep
+    case finished
+}
+
+final class LaunchScreenManager: ObservableObject{
+    
+    @Published private(set) var state: LaunchScreenStep = .firstStep
+    
+    func dismiss() { 
+        self.state = .finished
+    }
+}

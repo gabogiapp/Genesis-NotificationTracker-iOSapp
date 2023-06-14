@@ -1,0 +1,8 @@
+import SwiftUI
+
+struct Student: Identifiable {
+    var id: String
+    var email: String
+    var password: String
+    var grades: [String]
+}

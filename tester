@@ -1,0 +1,217 @@
+class NotificationPresserViewModel : ObservableObject {
+    private var oldGrades = [""]
+    private var plistData : [String: AnyObject] = [:]
+    private var classes: [String] = []
+    private var newAverageGrades: [String] = []
+    private var newAssignmentNames = [[String]]()
+    private var counterGETREQ : Int = 0
+    private var counterCLASSRE: Int = 0
+    private var newAssignmentTypes = [[String]]()
+    private var newAssignmentGrades = [[String]]()
+
+    func fetchCurrentUserInfo(_ isButtonOn: Bool, _ key: String) {
+        guard let uid = FirebaseManager.shared.auth.currentUser?.uid else {
+            return
+        }
+  
+        FirebaseManager.shared.firestore.collection("Students").document(uid).getDocument { [self] snapshot, error in
+            if let error = error {
+                print("Failed to fetch current user", error)
+                return
+            }
+            guard let data = snapshot?.data() else {
+                return}
+            let email = data["email"] as? String ?? ""
+            let encryptedPassword = data["encrypted password"] as? String ?? ""
+            let studentID = data["studentID"] as? String ?? ""
+            let oldLengthOfGrades = data["grades length"] as? [Int] ?? []
+            
+            do {
+                // Encrypt the plaintext
+                if let decryptedPassword = try Backend.decryptString(encryptedPassword, key: key) {
+                    receiveGrades(studentID, email, decryptedPassword, oldLengthOfGrades, uid)
+                } else {
+                    print("Failed to decrypt.")
+                }
+            } catch {
+                print("Error: \(error)")
+            }
+    }
+    }
+    func performLogin(username: String, password: String, completion: @escaping (Bool) -> Void)
+    {
+        let loginURLString = "https://parents.westfieldnjk12.org/genesis/sis/j_security_check"
+        let loginString = "\(username):\(password)"
+        
+        guard let loginData = loginString.data(using: .utf8) else {
+            completion(false)
+            return
+        }
+        let base64LoginString = loginData.base64EncodedString()
+        let loginHeaders = [
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Cache-Control": "max-age=0",
+          "Connection": "keep-alive",
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Origin": "https://parents.westfieldnjk12.org",
+          "Referer": "https://parents.westfieldnjk12.org/genesis/sis/view?gohome=true",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "same-origin",
+          "Sec-Fetch-User": "?1",
+          "Upgrade-Insecure-Requests": "1",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Google Chrome\";v=\"113\", \"Chromium\";v=\"113\", \"Not-A.Brand\";v=\"24\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Windows\""
+        ]
+        
+        let loginURL = URL(string: loginURLString)!
+        var loginRequest = URLRequest(url: loginURL)
+        loginRequest.httpMethod = "POST"
+        loginRequest.setValue("Basic \(base64LoginString)", forHTTPHeaderField: "Authorization")
+        loginRequest.httpBody = "idTokenString=&j_username=\(username)&j_password=\(password)".data(using: .utf8)
+        loginRequest.allHTTPHeaderFields = loginHeaders
+        
+        let sharedSession = URLSession.shared
+        let loginTask = sharedSession.dataTask(with: loginRequest) { (_, response, _) in
+            if let response = response as? HTTPURLResponse, response.statusCode == 200 {
+                completion(true)
+            } else {
+                completion(false)
+            }
+        }
+        loginTask.resume()
+    }
+    func performGetRequest(studentID: String, completion: @escaping (Data?) -> Void) {
+        let getRequestURLString = "https://parents.westfieldnjk12.org/genesis/parents?tab1=studentdata&tab2=gradebook&tab3=weeklysummary&action=form&studentid=\(studentID)"
+        let getRequestURL = URL(string: getRequestURLString)!
+        var getRequest = URLRequest(url: getRequestURL)
+        getRequest.httpMethod = "GET"
+        getRequest.allHTTPHeaderFields = [
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Cache-Control": "max-age=0",
+          "Connection": "keep-alive",
+          "Referer": "https://parents.westfieldnjk12.org/genesis/parents?tab1=studentdata&tab2=gradebook&action=form&studentid=\(studentID)",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "same-origin",
+          "Sec-Fetch-User": "?1",
+          "Upgrade-Insecure-Requests": "1",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Google Chrome\";v=\"113\", \"Chromium\";v=\"113\", \"Not-A.Brand\";v=\"24\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Windows\""
+        ]
+        let sharedSession = URLSession.shared
+        let getRequestTask = sharedSession.dataTask(with: getRequest) { (data, _, _) in
+            completion(data)
+        }
+        getRequestTask.resume()
+    }
+
+    func performClassRequest(index: Int, codes: [String], studentID: String, completion: @escaping (Data?) -> Void)
+    {
+      func performNextRequest(index: Int)
+      {
+        if index >= codes.count
+        {
+          // All requests have been completed
+          completion(nil)
+          return
+        }
+          
+        let getRequestHeaders = [
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "max-age=0",
+        "Connection": "keep-alive",
+        "Referer": "https://parents.westfieldnjk12.org/genesis/parents?tab1=studentdata&tab2=gradebook&action=form&studentid=\(studentID)",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Google Chrome\";v=\"113\", \"Chromium\";v=\"113\", \"Not-A.Brand\";v=\"24\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Windows\""
+                                ]
+        
+        let sharedSession = URLSession.shared
+        let sessionWithCookies = URLSession(configuration: .default)
+        
+        var code = codes[index]
+        let letterIndex = Backend.findIndex(of: ",", in: code) ?? 0
+        let code1 = String(code[code.startIndex..<code.index(code.startIndex, offsetBy: letterIndex - 1)])
+        let start = code.index(code.startIndex, offsetBy: letterIndex + 1)
+        let range = start..<code.endIndex
+        let code2 = String(code[range])
+        
+        let classesURLString = "https://parents.westfieldnjk12.org/genesis/parents?tab1=studentdata&tab2=gradebook&tab3=coursesummary&studentid=\(studentID)&action=form&courseCode=\(code1)&courseSection=\(code2)"
+        let classesRequestURL = URL(string: classesURLString)!
+        var classesRequest = URLRequest(url: classesRequestURL)
+        classesRequest.httpMethod = "GET"
+        classesRequest.allHTTPHeaderFields = getRequestHeaders
+            
+        let classesTask = sessionWithCookies.dataTask(with: classesRequest) { (data, _, _) in
+          if index + 1 < codes.count
+          {
+            performNextRequest(index: index + 1)
+          }
+          completion(data)
+        }
+            
+        classesTask.resume()
+      }
+      // Start the sequential execution
+      performNextRequest(index: index)
+    }
+
+    func receiveGrades(_ studentID: String, _ username: String, _ password: String, _ oldLengthOfGrades: [Int], _ uid: String)
+    {
+      var letterIndex = Backend.findIndex(of: "@", in: username) ?? 0
+      var oldLengthGrades = oldLengthOfGrades
+        print()
+        
+      if letterIndex == 0
+      {
+        return
+      }
+      else
+      {
+        let username1 = String(username[username.startIndex..<username.index(username.startIndex, offsetBy: letterIndex - 1)])
+        let username2 = String(username[username.index(username.startIndex, offsetBy: letterIndex + 1)...])
+        
+          performLogin(username: "\(username1)%40\(username2)", password: password) { success in
+          if success
+          {
+              self.performGetRequest(studentID: studentID) { data in
+              if let responseData = data
+              {
+                let responseString = String(data: responseData, encoding: .utf8)
+                let codes = Backend.codeScrape(responseString ?? "")
+                            
+                  self.performClassRequest(index: 0, codes: codes, studentID: studentID) { data in
+                  if let responseData = data
+                  {
+                    let responseString = String(data: responseData, encoding: .utf8)
+
+                      self.newAssignmentGrades.append(Backend.scrapeAssignmentsGrades(responseString ?? ""))
+                      self.newAssignmentNames.append(Backend.scrapeAssignmentsName(responseString ?? ""))
+                      self.newAssignmentTypes.append(Backend.scrapeAssignmentsTypes(responseString ?? ""))
+                      print(self.newAssignmentGrades)
+                      print(self.newAssignmentTypes)
+                      print(self.newAssignmentNames)
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+ 
+
+    }

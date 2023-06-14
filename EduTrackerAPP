@@ -1,0 +1,28 @@
+import SwiftUI
+import Firebase
+
+@main
+struct GenesisNotificationAppAPP: App {
+    @State var showWelcomePage = false
+    @State var showLaunchScreen = true
+    @State var showingNotifictionPresserView = false
+    init () {
+        FirebaseApp.configure()
+    }
+    //MARK: ADD LOGIC SO THAT WHEN USER IS SIGNED-IN, THEY STATE IN
+    var body: some Scene {
+ 
+        WindowGroup {
+            if showWelcomePage != true && showLaunchScreen != true  {
+                NotificationPresserview(showWelcomePage: $showWelcomePage)
+            }
+            else if showWelcomePage == true && showLaunchScreen != true {
+                WelcomePageView(showWelcomePage: $showWelcomePage)
+            }
+            else {
+                LaunchScreenView(showWelcomeScreen: $showWelcomePage, showLaunchScreen: $showLaunchScreen)
+            }
+    }
+}
+
+}

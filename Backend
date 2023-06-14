@@ -1,0 +1,382 @@
+import Foundation
+import CommonCrypto
+import Firebase
+import SwiftUI
+import SwiftSoup
+
+struct Backend : View {
+    @State var id = "2515511"
+    @State var name = "omaimon@msn.com"
+    @State var pass = "2504logan"
+    @State private var plistData : [String: AnyObject] = [:]
+    @State var key: String = ""
+    @State var numOfGrades: Int = 0
+    
+
+    //MARK: MAKE SURE YOUR VPN IS ONNNNNNNN!!!!!!
+    var body: some View {
+        Button("VPN MUST BE ON!!!") {
+            
+            
+        }
+            .frame(width: 100, height: 100, alignment: .center)
+            .foregroundColor(.green)
+            .background(.black)
+            .onAppear {
+                plistData = KeyManager.getDictValue()!
+                print(plistData)
+                key = (plistData["ENCRYPTION_KEY"] as! NSString) as String
+                print(key)
+            }
+    }
+       
+    static func scrapeCategories(_ response: String) -> [String]
+    {
+      var categories123 = [""]
+      do
+      {
+        let soup = try SwiftSoup.parse(response)
+        let listOfCategories = try soup.select(".categorytab")
+        var categories = [String]()
+        for cat in listOfCategories
+        {
+          categories.append(try cat.text().replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "\r", with: ""))
+        }
+        var count = 0
+        var categories1 = [String]()
+        let scrapeAllAverageGrades = scrapeAllAverageGrades(response)
+        var goodIndices = returnIndicesOfGraded(scrapeAllAverageGrades)
+          while count < goodIndices.count {
+              var goodIndex = goodIndices[count]
+              categories1.append(categories[goodIndex])
+          }
+        categories123 = categories1
+       }
+       catch
+       {
+          print(error)
+       }
+        print(categories123)
+      return categories123
+    }
+    
+    static func scrapeAllAverageGrades(_ response: String) -> [String] {
+        
+        var grades123 = [""]
+         do {
+           let soup = try SwiftSoup.parse(response)
+           let listOfCellRights = try soup.select(".cellRight")
+           var grades = [String]()
+           for cellRight in listOfCellRights
+           {
+              var cellCenter = try cellRight.select(".cellCenter")
+              if (cellCenter != nil)
+              {
+                let text = try cellCenter.text().replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "\r", with: "")
+                if (text.count > 0)
+                {
+                  grades.append(text)
+                }
+              }
+              if let grade = try cellRight.select("> div").first
+              {
+                let text = try grade.text().replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "\r", with: "")
+                if (text.count > 0)
+                {
+                  grades.append(text)
+                }
+              }
+           }
+           grades123 = grades
+         }
+         catch {
+             print(error)
+         }
+        return grades123
+        }
+    
+    static func returnIndicesOfGraded(_ scrapeAllAverageGrades: [String]) -> [Int] {
+        var indices = [Int]()
+        do {
+            var index = 0
+            print(scrapeAllAverageGrades)
+            for grade in scrapeAllAverageGrades {
+                if (findIndex(of: "%", in: grade) != nil) {
+                    indices.append(index)
+                    
+                }
+                index += 1
+               
+            }
+        }
+        catch
+        {
+            print(error)
+        }
+       
+
+        return indices
+        
+    }
+    
+    static func scrapeGradedAverageGrades(_ response: String) -> [String] {
+    var grades123 = [""]
+     do {
+       let soup = try SwiftSoup.parse(response)
+       let listOfCellRights = try soup.select(".cellRight")
+       var grades = [String]()
+       for cellRight in listOfCellRights
+       {
+          var cellCenter = try cellRight.select(".cellCenter")
+          if (cellCenter != nil)
+          {
+            let text = try cellCenter.text().replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "\r", with: "")
+            if (text.count > 0 && findIndex(of: "Not Graded", in: text) == nil)
+            {
+              grades.append(text)
+            }
+          }
+          if let grade = try cellRight.select("> div").first
+          {
+            let text = try grade.text().replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "\r", with: "")
+            if (text.count > 0 && findIndex(of: "Not Graded", in: text) == nil)
+            {
+              grades.append(text)
+            }
+          }
+       }
+       grades123 = grades
+     }
+     catch {
+         print(error)
+     }
+    return grades123
+    }
+    static func findIndex(of string: String, in str: String) -> Int? {
+       for (index, char) in str.enumerated() {
+           var found = true
+           for (offset, char2) in string.enumerated() {
+               if str[str.index(str.startIndex, offsetBy: index + offset)] != char2 {
+                   found = false
+                   break
+               }
+           }
+           if found {
+               return index
+           }
+       }
+       return nil
+    }
+    static func scrapeCodes(_ response: String) -> [String] {
+        do {
+            let soup = try SwiftSoup.parse(response)
+            let buttons = try soup.select(".cellRight[onclick]")
+            let buttonsText = try buttons.array().compactMap { button in
+                return try button.attr("onclick")
+            }
+            
+            var uniqueCodes = [String]()
+            for code in buttonsText {
+                let newCode = code.replacingOccurrences(of: "goToCourseSummary", with: "")
+                    .replacingOccurrences(of: "(", with: "")
+                    .replacingOccurrences(of: ")", with: "")
+                    .replacingOccurrences(of: "'", with: "")
+                    .replacingOccurrences(of: ";", with: "")
+                if !newCode.isEmpty && !uniqueCodes.contains(newCode) {
+                    uniqueCodes.append(newCode)
+                }
+            }
+            
+            return uniqueCodes
+        } catch {
+            print("Error: \(error)")
+            return []
+        }
+    }
+
+    
+    //MARK: THIS WOULD INTIALIZE A STUDENT'S INFO THATW AS ALREADY ADDED TO THE FIRESTORE DATABASE
+    static func initializeStudent (_ uid : String,_ individualGradesLength: [Int], _ averageGrades: [String]) {
+        let db = Firestore.firestore()
+        db.collection("Students").document(uid).updateData(["average grades" : averageGrades])
+        db.collection("Students").document(uid).updateData(["grades length" : individualGradesLength])
+    }
+   
+    
+    static func encryptString(_ plaintext: String, _ key: String) throws -> String? {
+        guard let keyData = key.data(using: .utf8) else {
+            return nil
+        }
+        
+        let plaintextData = plaintext.data(using: .utf8)!
+        let encryptedData = NSMutableData(length: Int(plaintextData.count + kCCBlockSizeAES128))!
+        var encryptedBytes = [UInt8](repeating: 0, count: encryptedData.length)
+        let encryptedLength = encryptedData.length
+        
+        let operation = CCOperation(kCCEncrypt)
+        let algorithm = CCAlgorithm(kCCAlgorithmAES128)
+        let options = CCOptions(kCCOptionPKCS7Padding)
+        
+        var numBytesEncrypted: Int = 0
+        
+        let cryptStatus = keyData.withUnsafeBytes { keyBytes in
+            plaintextData.withUnsafeBytes { dataBytes in
+                encryptedBytes.withUnsafeMutableBytes { encryptedBytesPtr in
+                    CCCrypt(
+                        operation,
+                        algorithm,
+                        options,
+                        keyBytes.baseAddress, keyBytes.count,
+                        nil,
+                        dataBytes.baseAddress, dataBytes.count,
+                        encryptedBytesPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), encryptedLength,
+                        &numBytesEncrypted
+                    )
+                }
+            }
+        }
+        
+        guard cryptStatus == CCCryptorStatus(kCCSuccess) else {
+            return nil
+        }
+        
+        let encryptedHexString = Data(encryptedBytes[..<numBytesEncrypted])
+            .map { String(format: "%02x", $0) }
+            .joined()
+        
+        return encryptedHexString
+    }
+    static func decryptString(_ ciphertext: String, key: String) throws -> String? {
+        guard let keyData = key.data(using: .utf8) else {
+            return nil
+        }
+        
+       guard let encryptedData = try self.dataFromHexString(ciphertext) else {
+            return nil
+        }
+        
+        let decryptedData = NSMutableData(length: Int(encryptedData.count + kCCBlockSizeAES128))!
+        var decryptedBytes = [UInt8](repeating: 0, count: decryptedData.length)
+        let decryptedLength = decryptedData.length
+        
+        let operation = CCOperation(kCCDecrypt)
+        let algorithm = CCAlgorithm(kCCAlgorithmAES128)
+        let options = CCOptions(kCCOptionPKCS7Padding)
+        
+        var numBytesDecrypted: Int = 0
+        
+        let cryptStatus = keyData.withUnsafeBytes { keyBytes in
+            encryptedData.withUnsafeBytes { dataBytes in
+                decryptedBytes.withUnsafeMutableBytes { decryptedBytesPtr in
+                    CCCrypt(
+                        operation,
+                        algorithm,
+                        options,
+                        keyBytes.baseAddress, keyBytes.count,
+                        nil,
+                        dataBytes.baseAddress, dataBytes.count,
+                        decryptedBytesPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), decryptedLength,
+                        &numBytesDecrypted
+                    )
+                }
+            }
+        }
+        
+        guard cryptStatus == CCCryptorStatus(kCCSuccess) else {
+            return nil
+        }
+        
+        let decryptedData1 = Data(decryptedBytes[..<numBytesDecrypted])
+        guard let decryptedString = String(data: decryptedData1, encoding: .utf8) else {
+            return nil
+        }
+        
+        return decryptedString
+    }
+    static func dataFromHexString(_ hexString: String) throws -> Data? {
+        let len = hexString.count / 2
+        var data = Data(capacity: len)
+        
+        for i in 0..<len {
+            let j = hexString.index(hexString.startIndex, offsetBy: i * 2)
+            let k = hexString.index(j, offsetBy: 2)
+            let bytes = hexString[j..<k]
+            
+            if var num = UInt8(bytes, radix: 16) {
+                data.append(&num, count: 1)
+            } else {
+                throw NSError(domain: "Invalid hex string", code: 0, userInfo: nil)
+            }
+        }
+        
+        return data
+    }
+    static func scrapeAssignmentsName(_ response: String) -> [String]
+    {
+      var assignmentsName123 = [""]
+      do
+      {
+        let soup = try SwiftSoup.parse(response)
+        let listOfassignmentsName = try soup.select(".cellCenter[style='font-weight:bold;border: 1px solid black;']")
+        var assignmentsName = [String]()
+        for ass in listOfassignmentsName
+        {
+          assignmentsName.append(try ass.text().replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "\\", with: "").replacingOccurrences(of: "\'", with: ""))
+        }
+                                        
+        assignmentsName123 = assignmentsName
+       }
+       catch
+       {
+          print(error)
+       }
+      return assignmentsName123
+    }
+    static func scrapeAssignmentsGrades(_ response: String) -> [String]
+    {
+        var assignmentsGrades123 = [""]
+        do
+            {
+            let soup = try SwiftSoup.parse(response)
+            let listOfAssignmentsGrades = try soup.select(".cellLeft[align=right], .cellLeft[align=center]")
+            var assignmentsGrades = [String]()
+            for grade in listOfAssignmentsGrades
+                {
+                assignmentsGrades.append(try grade.select("div").text().replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: " ", with: ""))
+                }
+            assignmentsGrades123 = assignmentsGrades
+            }
+        catch
+        {
+            print(error)
+        }
+            return assignmentsGrades123
+}
+    static func scrapeAssignmentsTypes(_ response: String) -> [String]
+    {
+      var assignmentsTypes = [String]()
+      do
+      {
+        let soup = try SwiftSoup.parse(response)
+        let listOfAssignmentsTypes = try soup.select("[id~=divDescription]")
+            
+        for type in listOfAssignmentsTypes
+        {
+          if let nextSibling = try type.nextSibling() as? TextNode
+          {
+            let nextSiblingText = try nextSibling.getWholeText().replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "\r", with: "")
+            assignmentsTypes.append(nextSiblingText)
+          }
+        }
+      }
+      catch
+      {
+        print("Error: \(error)")
+      }
+        
+        return assignmentsTypes
+    }
+    }
+
+
+

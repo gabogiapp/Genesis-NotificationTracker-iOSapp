@@ -1,0 +1,49 @@
+import SwiftUI
+struct LaunchScreenView: View {
+
+    @StateObject var globalLogin = GlobalLogin()
+    @Binding var showWelcomeScreen: Bool
+    @State private var animate2 = false
+    @Binding var showLaunchScreen: Bool
+
+    var body: some View {
+            VStack {
+                Image("notification-bell-green")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 130, height: 130)
+                    .shadow(color: animate2 ? Color.green.opacity(0.7) : Color.black.opacity(0.7), radius: animate2 ? 30 : 10, x: 0, y: animate2 ? 50: 30)
+                    .scaleEffect(animate2 ? 1.1 : 1.0)
+                    .offset(y : animate2 ? -7 : 0)
+            }
+            .onAppear {
+                    withAnimation (
+                        Animation.easeInOut(duration: 0.75)
+                            .repeatCount(1)) {
+                                animate2 = true
+                                DispatchQueue
+                                    .main
+                                    .asyncAfter(deadline: .now() + 1.0) {
+                                        if globalLogin.loggedIn {
+                                            showLaunchScreen = false
+                                            showWelcomeScreen = false
+                                        }
+                                        else
+                                            {
+                                            showLaunchScreen = false
+                                            showWelcomeScreen = true
+                                            }
+                                }
+                        }
+                }
+}
+}
+struct LaunchScreenView_Previews: PreviewProvider {
+    @State static var showWelcomeScreen = true
+    @State static var showLaunchScreen = true
+    static var previews: some View {
+        LaunchScreenView(showWelcomeScreen: $showWelcomeScreen, showLaunchScreen: $showLaunchScreen)
+        
+    }
+}
+
