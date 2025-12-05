@@ -86,3 +86,6 @@ ruff_cache/
 
 # Mac / OS files (safe to ignore)
 .DS_Store
+
+# local secret file (do not commit)
+ServiceAccountKey.json

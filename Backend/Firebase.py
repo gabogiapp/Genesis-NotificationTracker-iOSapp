@@ -3,6 +3,7 @@ from firebase_admin import credentials
 from firebase_admin import messaging
 from firebase_admin import firestore
 import os
+import json
 from typing import Any, List, Optional
 from dataclasses import dataclass
 
@@ -36,13 +37,29 @@ class Firebase:
 
     # Initialize Firebase SDK once when module is loaded.
     try:
-        cred_path = os.path.join(os.path.dirname(__file__), "ServiceAccountKey.json")
-        if os.path.exists(cred_path):
-            cred = credentials.Certificate(cred_path)
-            firebase_admin.initialize_app(cred)
+        # Primary: read service account JSON from the environment variable
+        sa_json = os.environ.get("SERVICE_ACCOUNT_JSON")
+        if sa_json:
+            try:
+                sa_dict = json.loads(sa_json)
+            except Exception:
+                sa_dict = None
+
+            if sa_dict:
+                cred = credentials.Certificate(sa_dict)
+                firebase_admin.initialize_app(cred)
+            else:
+                # If parsing failed, fall back to default application credentials
+                firebase_admin.initialize_app()
         else:
-            # Fall back to default credentials if present in environment
-            firebase_admin.initialize_app()
+            # Legacy fallback: look for a local ServiceAccountKey.json (not recommended for repos)
+            cred_path = os.path.join(os.path.dirname(__file__), "ServiceAccountKey.json")
+            if os.path.exists(cred_path):
+                cred = credentials.Certificate(cred_path)
+                firebase_admin.initialize_app(cred)
+            else:
+                # Fall back to default credentials if present in environment
+                firebase_admin.initialize_app()
     except Exception:
         # Initialization may already be done or fail in some environments; let calls fail later with a clear error
         pass
