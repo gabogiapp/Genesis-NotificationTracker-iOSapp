@@ -1,0 +1,7 @@
+flask
+bs4
+requests
+firebase_admin
+pycryptodome
+flask-cors
+base64

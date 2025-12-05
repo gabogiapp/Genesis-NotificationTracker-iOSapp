@@ -1,0 +1,88 @@
+# --------------------
+# Python
+# --------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+# (Generated files)
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+coverage.xml
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# PDM
+.pdm/
+__pypackages__/
+
+# Poetry
+.poetry/
+poetry.lock
+
+# Django
+*.log
+staticfiles/
+media/
+
+# Flask
+instance/
+*.pid
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# Ruff / Black
+ruff_cache/
+.black_cache/
+
+# VS Code settings
+.vscode/
+
+# Mac / OS files (safe to ignore)
+.DS_Store
