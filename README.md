@@ -1,1 +1,1 @@
-Grade tracker for Westfield High School students. Help students track their academic progress. App is no longer on the app store because it had to be removed.
+Grade tracker for Westfield High School students. Help students track their academic progress. App is no longer on the app store because it had to be removed due to policy reasons from board.
